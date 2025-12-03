@@ -1,0 +1,162 @@
+services:
+  # Kong API Gateway
+  kong:
+    image: kong:2.8-alpine
+    container_name: supabase-kong
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+    volumes:
+      - ./volumes/api/kong.yml:/var/lib/kong/kong.yml:ro
+    networks:
+      - shared-network
+
+  # Auth Service
+  auth:
+    image: supabase/gotrue:v2.132.3
+    container_name: supabase-auth
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://${DOMAIN_NAME:-localhost}:8000
+      
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-changeme123}@shared-postgres:5432/supabase?search_path=auth
+      
+      GOTRUE_SITE_URL: http://${DOMAIN_NAME:-localhost}:3000
+      GOTRUE_URI_ALLOW_LIST: "*"
+      GOTRUE_DISABLE_SIGNUP: false
+      
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: true
+      GOTRUE_MAILER_AUTOCONFIRM: true
+    networks:
+      - shared-network
+
+  # REST API
+  rest:
+    image: postgrest/postgrest:v11.2.2
+    container_name: supabase-rest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-changeme123}@shared-postgres:5432/supabase
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - shared-network
+
+  # Realtime Service
+  realtime:
+    image: supabase/realtime:v2.25.35
+    container_name: supabase-realtime
+    restart: unless-stopped
+    environment:
+      DB_HOST: shared-postgres
+      DB_PORT: 5432
+      DB_NAME: supabase
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
+      DB_SSL: "false"
+      PORT: 4000
+      JWT_SECRET: ${JWT_SECRET}
+      REPLICATION_MODE: RLS
+      REPLICATION_POLL_INTERVAL: 100
+      SECURE_CHANNELS: "true"
+      SLOT_NAME: supabase_realtime_rls
+      TEMPORARY_SLOT: "true"
+    networks:
+      - shared-network
+
+  # Storage Service
+  storage:
+    image: supabase/storage-api:v0.43.11
+    container_name: supabase-storage
+    restart: unless-stopped
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-changeme123}@shared-postgres:5432/supabase
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "true"
+      IMGPROXY_URL: http://imgproxy:5001
+    volumes:
+      - ./volumes/storage:/var/lib/storage
+    networks:
+      - shared-network
+
+  # Image Proxy
+  imgproxy:
+    image: darthsim/imgproxy:v3.8.0
+    container_name: supabase-imgproxy
+    restart: unless-stopped
+    environment:
+      IMGPROXY_BIND: ":5001"
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
+      IMGPROXY_USE_ETAG: "true"
+      IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+    volumes:
+      - ./volumes/storage:/var/lib/storage
+    networks:
+      - shared-network
+
+  # Meta Service
+  meta:
+    image: supabase/postgres-meta:v0.68.0
+    container_name: supabase-meta
+    restart: unless-stopped
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: shared-postgres
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: supabase
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
+    networks:
+      - shared-network
+
+  # Supabase Studio
+  studio:
+    image: supabase/studio:20231123-64a766a
+    container_name: supabase-studio
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
+      
+      DEFAULT_ORGANIZATION_NAME: My Organization
+      DEFAULT_PROJECT_NAME: My Project
+      
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: http://${DOMAIN_NAME:-localhost}:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+    networks:
+      - shared-network
+
+networks:
+  shared-network:
+    external: true
