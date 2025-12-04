@@ -1,0 +1,14 @@
+version: '3.8'
+
+# Dummy docker-compose for Hostinger compatibility
+# The actual deployment uses modular files via deploy.sh
+
+services:
+  placeholder:
+    image: alpine:latest
+    command: echo "Use deploy.sh or individual compose files"
+
+networks:
+  shared-network:
+    external: true
+    name: shared-network
