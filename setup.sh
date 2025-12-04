@@ -11,7 +11,7 @@ NC='\033[0m'
 
 # 1. Create network
 echo -e "${YELLOW}🌐 Creating Docker network...${NC}"
-docker network create shared-network 2>/dev/null || echo "Network already exists"
+docker network create shared-network 2>/dev/null || echo "✓ Network already exists"
 
 # 2. Generate JWT secret if not exists
 if [ ! -f .env ]; then

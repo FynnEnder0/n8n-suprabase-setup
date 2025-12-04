@@ -70,7 +70,11 @@ echo -e "${YELLOW}Step 4: Getting VPS domain...${NC}"
 VPS_DOMAIN="srv1097337.hstgr.cloud"
 echo -e "${GREEN}✅ Your VPS domain: $VPS_DOMAIN${NC}"
 
-echo -e "${YELLOW}Step 5: Setting up environment...${NC}"
+echo -e "${YELLOW}Step 5: Creating Docker network...${NC}"
+docker network create shared-network 2>/dev/null || echo "✓ Network already exists"
+echo -e "${GREEN}✅ Docker network ready${NC}"
+
+echo -e "${YELLOW}Step 6: Setting up environment...${NC}"
 if [ ! -f .env ]; then
     cp .env.example .env
 
@@ -103,7 +107,7 @@ else
     echo -e "${GREEN}✅ .env file already exists${NC}"
 fi
 
-echo -e "${YELLOW}Step 6: Running setup...${NC}"
+echo -e "${YELLOW}Step 7: Running setup...${NC}"
 chmod +x setup.sh start-all.sh stop-all.sh backup.sh
 ./setup.sh
 
