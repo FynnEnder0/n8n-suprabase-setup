@@ -1,0 +1,13 @@
+version: '3.8'
+
+# Main orchestrator file for Hostinger deployment
+# This file includes all modular compose files while maintaining separation
+
+include:
+  - docker-compose.postgres.yml
+  - docker-compose.n8n.yml
+  - docker-compose.supabase.yml
+
+# Network is defined in postgres file and used by all services
+# No need to redefine here - each modular file references 'shared-network'
+
