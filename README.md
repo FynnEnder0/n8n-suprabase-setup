@@ -2,32 +2,75 @@
 
 Complete Docker setup with n8n and Supabase sharing a PostgreSQL database via a common Docker network.
 
-## 🏗️ Modular Architecture
+## 🏗️ Modular Architecture with Dual Deployment Options
 
-This project uses a **modular Docker Compose architecture** for maximum flexibility:
+This project supports **two deployment methods**:
 
+### **Option 1: Unified Deployment (Hostinger Git/One-Command)**
 ```
-docker-compose.yml              ← Main orchestrator (includes all modules)
-├── docker-compose.postgres.yml  ← PostgreSQL + shared network
-├── docker-compose.n8n.yml       ← n8n workflow automation
-└── docker-compose.supabase.yml  ← Supabase services
+docker-compose.yml    ← All services in one file (for Hostinger/quick deploy)
 ```
+Use `docker-compose up -d` or deploy via Hostinger Git integration.
 
-**Why Modular?**
-- ✅ Start/stop services independently
-- ✅ Easy to add new services
-- ✅ Clear separation of concerns
-- ✅ Simplified maintenance
-- ✅ Works with Hostinger's Git deployment
+### **Option 2: Modular Deployment (SSH/Advanced)**
+```
+docker-compose.postgres.yml  ← PostgreSQL + shared network
+docker-compose.n8n.yml       ← n8n workflow automation
+docker-compose.supabase.yml  ← Supabase services
+```
+Use individual files with `./start-all.sh` for granular control.
 
-**How It Works:**
-- All services communicate via `shared-network` (created by postgres compose)
-- Main `docker-compose.yml` uses Docker Compose's `include` directive
-- Each module can be managed individually or as a whole
+**Why Both?**
+- ✅ **Hostinger compatibility**: Single file works with Git deployment
+- ✅ **Modularity**: Separate files for independent service management
+- ✅ **Flexibility**: Choose the approach that fits your workflow
+- ✅ **No duplication**: Both use the same configurations
 
 ## 🚀 Quick Start
 
-### Option 1: Local Development
+### Method 1: Hostinger Git Deployment (Easiest)
+
+1. **Create the network manually first:**
+   ```bash
+   ssh root@srv1097337.hstgr.cloud
+   docker network create shared-network
+   ```
+
+2. **Deploy via Hostinger Panel:**
+   - Connect to GitHub: `https://github.com/FynnEnder0/n8n-suprabase-setup.git`
+   - Configure environment variables in panel
+   - Click Deploy
+
+3. **Initialize databases:**
+   ```bash
+   ssh root@srv1097337.hstgr.cloud
+   cd /path/to/deployment
+   ./post-deploy.sh
+   ```
+
+**📖 See [HOSTINGER_GIT_DEPLOY.md](HOSTINGER_GIT_DEPLOY.md) for detailed instructions**
+
+### Method 2: SSH with Unified File
+
+```bash
+# SSH into VPS
+ssh root@srv1097337.hstgr.cloud
+
+# Clone or upload files
+cd /opt/n8n-supabase
+
+# Create network
+docker network create shared-network
+
+# Copy and configure environment
+cp .env.example .env
+nano .env
+
+# Deploy all services at once
+docker-compose up -d
+```
+
+### Method 3: SSH with Modular Files (Advanced)
 
 ```bash
 # Clone the repository
@@ -54,12 +97,9 @@ docker network create shared-network
 docker-compose -f docker-compose.postgres.yml up -d
 docker-compose -f docker-compose.n8n.yml up -d
 docker-compose -f docker-compose.supabase.yml up -d
-
-# Or use the main orchestrator
-docker-compose up -d
 ```
 
-### Option 2: Deploy to Hostinger VPS (or any Ubuntu VPS)
+### Method 4: Automated VPS Deployment
 
 ```bash
 # On your local machine, upload files to VPS
@@ -75,8 +115,6 @@ cd /opt/n8n-supabase
 chmod +x deploy-to-vps.sh
 sudo ./deploy-to-vps.sh
 ```
-
-**📖 For detailed VPS deployment instructions, see [HOSTINGER_GIT_DEPLOY.md](HOSTINGER_GIT_DEPLOY.md)**
 
 ## 📦 What's Included
 
@@ -105,10 +143,30 @@ After setup:
 - 2GB RAM minimum
 - 10GB disk space
 
-## 🔧 Management Scripts
+## 🔧 Management
 
+### Using Unified File
 ```bash
-# Start all services (uses all compose files)
+# Start all services
+docker-compose up -d
+
+# Stop all services
+docker-compose down
+
+# View status
+docker-compose ps
+
+# View logs
+docker-compose logs -f n8n
+docker-compose logs -f supabase-studio
+
+# Restart a specific service
+docker-compose restart n8n
+```
+
+### Using Modular Files
+```bash
+# Start all services (uses modular files)
 ./start-all.sh
 
 # Stop all services
@@ -119,17 +177,11 @@ docker-compose -f docker-compose.postgres.yml up -d
 docker-compose -f docker-compose.n8n.yml up -d
 docker-compose -f docker-compose.supabase.yml up -d
 
-# Or use the main orchestrator:
-docker-compose up -d        # Start all
-docker-compose down         # Stop all
-docker-compose ps           # Check status
+# Restart just n8n
+docker-compose -f docker-compose.n8n.yml restart
 
 # Create backups
 ./backup.sh
-
-# View logs
-docker-compose logs -f n8n
-docker-compose logs -f supabase-studio
 ```
 
 ## 🔒 Security
@@ -213,6 +265,40 @@ docker-compose up -d
 # Or individually:
 docker-compose -f docker-compose.yourservice.yml up -d
 ```
+
+## 📁 Project Structure
+
+```
+.
+├── docker-compose.yml              # All services (for Hostinger/unified deployment)
+├── docker-compose.postgres.yml     # PostgreSQL only (modular)
+├── docker-compose.n8n.yml          # n8n only (modular)
+├── docker-compose.supabase.yml     # Supabase services (modular)
+├── .env                            # Environment configuration
+├── setup.sh                        # Automated modular setup
+├── start-all.sh                    # Start all modular services
+├── stop-all.sh                     # Stop all services
+├── deploy-to-vps.sh               # Full VPS deployment automation
+├── pre-deploy.sh                   # Pre-deployment hook
+├── post-deploy.sh                  # Post-deployment hook (DB init)
+└── setup-ssl.sh                    # SSL/HTTPS setup
+```
+
+## 🔄 Which Method Should I Use?
+
+| Deployment Method | Use Case | Pros | Cons |
+|------------------|----------|------|------|
+| **Hostinger Git** | Automated CI/CD | Auto-deploy on git push | Less granular control |
+| **Unified SSH** | Quick VPS setup | Simple, one command | All-or-nothing |
+| **Modular SSH** | Production, development | Granular control, restart individual services | More commands |
+| **deploy-to-vps.sh** | First-time setup | Installs everything | One-time use |
+
+## 💡 Tips
+
+- **Development**: Use modular files for flexibility
+- **Production on Hostinger**: Use Git deployment with unified file
+- **Production on other VPS**: Use `deploy-to-vps.sh` then modular files
+- **CI/CD**: Hostinger Git deployment with webhooks
 
 ## 📝 License
 

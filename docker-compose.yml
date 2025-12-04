@@ -1,13 +1,46 @@
-version: '3.8'
+#!/bin/bash
+# Hostinger-compatible deployment script
+# This replaces docker-compose.yml for Git deployments while maintaining modularity
 
-# Main orchestrator file for Hostinger deployment
-# This file includes all modular compose files while maintaining separation
+set -e
 
-include:
-  - docker-compose.postgres.yml
-  - docker-compose.n8n.yml
-  - docker-compose.supabase.yml
+echo "🚀 Starting modular deployment..."
 
-# Network is defined in postgres file and used by all services
-# No need to redefine here - each modular file references 'shared-network'
+# Ensure network exists
+docker network create shared-network 2>/dev/null || echo "✓ Network exists"
 
+# Create volume directories
+mkdir -p volumes/n8n volumes/postgres volumes/storage volumes/api
+
+echo "📦 Starting PostgreSQL..."
+docker-compose -f docker-compose.postgres.yml up -d
+
+echo "⏳ Waiting for PostgreSQL..."
+sleep 10
+until docker exec shared-postgres pg_isready -U postgres 2>/dev/null; do
+  echo -n "."
+  sleep 2
+done
+
+echo ""
+echo "💾 Creating databases..."
+docker exec shared-postgres psql -U postgres -c "CREATE DATABASE n8n;" 2>/dev/null || echo "✓ n8n DB exists"
+docker exec shared-postgres psql -U postgres -c "CREATE DATABASE supabase;" 2>/dev/null || echo "✓ supabase DB exists"
+
+echo "📊 Creating Supabase schemas..."
+docker exec shared-postgres psql -U postgres -d supabase -c "CREATE SCHEMA IF NOT EXISTS auth;" 2>/dev/null || true
+docker exec shared-postgres psql -U postgres -d supabase -c "CREATE SCHEMA IF NOT EXISTS storage;" 2>/dev/null || true
+docker exec shared-postgres psql -U postgres -d supabase -c "CREATE SCHEMA IF NOT EXISTS realtime;" 2>/dev/null || true
+
+echo "🔧 Starting Supabase services..."
+docker-compose -f docker-compose.supabase.yml up -d
+
+echo "⚙️ Starting n8n..."
+docker-compose -f docker-compose.n8n.yml up -d
+
+echo ""
+echo "✅ Deployment complete!"
+echo "🌐 Access URLs:"
+echo "   n8n:             http://${DOMAIN_NAME:-localhost}:5678"
+echo "   Supabase Studio: http://${DOMAIN_NAME:-localhost}:3000"
+echo "   Supabase API:    http://${DOMAIN_NAME:-localhost}:8000"
