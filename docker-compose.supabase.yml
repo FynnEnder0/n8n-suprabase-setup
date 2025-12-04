@@ -4,9 +4,9 @@ services:
     image: kong:2.8-alpine
     container_name: supabase-kong
     restart: unless-stopped
-    ports:
-      - "8000:8000"
-      - "8443:8443"
+    expose:
+      - "8000"
+      - "8443"
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
@@ -16,6 +16,14 @@ services:
       - ./volumes/api/kong.yml:/var/lib/kong/kong.yml:ro
     networks:
       - shared-network
+    labels:
+      - "traefik.enable=true"
+      # API Router
+      - "traefik.http.routers.supabase-api.rule=Host(`api.${DOMAIN_NAME:-srv1097337.hstgr.cloud}`)"
+      - "traefik.http.routers.supabase-api.entrypoints=websecure"
+      - "traefik.http.routers.supabase-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.supabase-api.service=supabase-api"
+      - "traefik.http.services.supabase-api.loadbalancer.server.port=8000"
 
   # Auth Service
   auth:
@@ -25,12 +33,12 @@ services:
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
-      API_EXTERNAL_URL: http://${DOMAIN_NAME:-localhost}:8000
-      
+      API_EXTERNAL_URL: https://api.${DOMAIN_NAME:-srv1097337.hstgr.cloud}
+
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-changeme123}@shared-postgres:5432/supabase?search_path=auth
       
-      GOTRUE_SITE_URL: http://${DOMAIN_NAME:-localhost}:3000
+      GOTRUE_SITE_URL: https://supabase.${DOMAIN_NAME:-srv1097337.hstgr.cloud}
       GOTRUE_URI_ALLOW_LIST: "*"
       GOTRUE_DISABLE_SIGNUP: false
       
@@ -141,8 +149,8 @@ services:
     image: supabase/studio:20231123-64a766a
     container_name: supabase-studio
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
@@ -150,12 +158,20 @@ services:
       DEFAULT_ORGANIZATION_NAME: My Organization
       DEFAULT_PROJECT_NAME: My Project
       
-      SUPABASE_URL: http://kong:8000
-      SUPABASE_PUBLIC_URL: http://${DOMAIN_NAME:-localhost}:8000
+      SUPABASE_URL: https://api.${DOMAIN_NAME:-srv1097337.hstgr.cloud}
+      SUPABASE_PUBLIC_URL: https://api.${DOMAIN_NAME:-srv1097337.hstgr.cloud}
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
     networks:
       - shared-network
+    labels:
+      - "traefik.enable=true"
+      # Studio Router
+      - "traefik.http.routers.supabase-studio.rule=Host(`supabase.${DOMAIN_NAME:-srv1097337.hstgr.cloud}`)"
+      - "traefik.http.routers.supabase-studio.entrypoints=websecure"
+      - "traefik.http.routers.supabase-studio.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.supabase-studio.service=supabase-studio"
+      - "traefik.http.services.supabase-studio.loadbalancer.server.port=3000"
 
 networks:
   shared-network:

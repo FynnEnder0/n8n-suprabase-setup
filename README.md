@@ -1,6 +1,6 @@
-# 🐳 Docker n8n + Supabase Setup
+# 🐳 Docker n8n + Supabase Setup with Traefik
 
-Complete Docker setup with n8n and Supabase sharing a PostgreSQL database via a common Docker network.
+Complete Docker setup with n8n and Supabase sharing a PostgreSQL database via a common Docker network, with Traefik as an automatic reverse proxy with SSL.
 
 ## 🏗️ Modular Architecture
 
@@ -10,7 +10,8 @@ This project uses a **modular Docker Compose architecture** for maximum flexibil
 docker-compose.yml              ← Main orchestrator (includes all modules)
 ├── docker-compose.postgres.yml  ← PostgreSQL + shared network
 ├── docker-compose.n8n.yml       ← n8n workflow automation
-└── docker-compose.supabase.yml  ← Supabase services
+├── docker-compose.supabase.yml  ← Supabase services
+└── docker-compose.traefik.yml   ← Traefik reverse proxy (automatic SSL)
 ```
 
 **Why Modular?**
@@ -18,10 +19,11 @@ docker-compose.yml              ← Main orchestrator (includes all modules)
 - ✅ Easy to add new services
 - ✅ Clear separation of concerns
 - ✅ Simplified maintenance
-- ✅ Works with Hostinger's Git deployment
+- ✅ Automatic SSL with Traefik
 
 **How It Works:**
 - All services communicate via `shared-network` (created by postgres compose)
+- Traefik provides automatic HTTPS with Let's Encrypt
 - Main `docker-compose.yml` uses Docker Compose's `include` directive
 - Each module can be managed individually or as a whole
 
@@ -80,6 +82,7 @@ sudo ./deploy-to-vps.sh
 
 ## 📦 What's Included
 
+- **Traefik**: Reverse proxy with automatic SSL (Let's Encrypt)
 - **n8n**: Workflow automation tool
 - **Supabase**: Complete backend-as-a-service
   - Kong API Gateway
@@ -92,11 +95,14 @@ sudo ./deploy-to-vps.sh
 
 ## 🌐 Access URLs
 
-After setup:
+After setup with DNS configured:
 
-- **n8n**: `https://your-domain:5678`
-- **Supabase Studio**: `http://your-domain:3000`
-- **Supabase API**: `http://your-domain:8000`
+- **n8n**: `https://n8n.your-domain.com` (automatic SSL)
+- **Supabase Studio**: `https://supabase.your-domain.com` (automatic SSL)
+- **Supabase API**: `https://api.your-domain.com` (automatic SSL)
+- **Traefik Dashboard**: `http://your-domain:8080`
+
+**📖 See [TRAEFIK_GUIDE.md](TRAEFIK_GUIDE.md) for detailed Traefik configuration and troubleshooting**
 
 ## 📋 Requirements
 

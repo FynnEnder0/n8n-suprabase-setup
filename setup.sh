@@ -3,7 +3,7 @@
 
 set -e
 
-echo "🚀 Starting complete setup for n8n + Supabase..."
+echo "🚀 Starting complete setup for n8n + Supabase + Traefik..."
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -31,6 +31,7 @@ if [ ! -f .env ]; then
     echo "   - POSTGRES_PASSWORD"
     echo "   - DOMAIN_NAME (your VPS IP or domain)"
     echo "   - N8N_USER and N8N_PASSWORD"
+    echo "   - SSL_EMAIL"
     echo "   - ANON_KEY and SERVICE_ROLE_KEY (for production)"
     echo ""
     read -p "Press Enter after you've updated .env file..."
@@ -38,13 +39,21 @@ fi
 
 # 3. Create necessary directories
 echo -e "${YELLOW}📁 Creating volume directories...${NC}"
-mkdir -p volumes/n8n volumes/postgres volumes/storage volumes/api
+mkdir -p volumes/n8n volumes/postgres volumes/storage volumes/api volumes/traefik/letsencrypt volumes/traefik/logs
 
-# 4. Start PostgreSQL
+# Fix permissions for Let's Encrypt
+touch volumes/traefik/letsencrypt/acme.json
+chmod 600 volumes/traefik/letsencrypt/acme.json
+
+# 4. Start Traefik
+echo -e "${YELLOW}🔀 Starting Traefik reverse proxy...${NC}"
+docker-compose -f docker-compose.traefik.yml up -d
+
+# 5. Start PostgreSQL
 echo -e "${YELLOW}🗄️  Starting PostgreSQL...${NC}"
 docker-compose -f docker-compose.postgres.yml up -d
 
-# 5. Wait for PostgreSQL
+# 6. Wait for PostgreSQL
 echo -e "${YELLOW}⏳ Waiting for PostgreSQL...${NC}"
 until docker exec shared-postgres pg_isready -U postgres 2>/dev/null; do
   echo -n "."
@@ -52,22 +61,22 @@ until docker exec shared-postgres pg_isready -U postgres 2>/dev/null; do
 done
 echo -e "${GREEN}✅ PostgreSQL is ready!${NC}"
 
-# 6. Create databases
+# 7. Create databases
 echo -e "${YELLOW}💾 Creating databases...${NC}"
 docker exec shared-postgres psql -U postgres -c "CREATE DATABASE n8n;" 2>/dev/null || echo "n8n DB exists"
 docker exec shared-postgres psql -U postgres -c "CREATE DATABASE supabase;" 2>/dev/null || echo "supabase DB exists"
 
-# 7. Create Supabase schemas
+# 8. Create Supabase schemas
 echo -e "${YELLOW}📊 Creating Supabase schemas...${NC}"
 docker exec shared-postgres psql -U postgres -d supabase -c "CREATE SCHEMA IF NOT EXISTS auth;" 2>/dev/null || true
 docker exec shared-postgres psql -U postgres -d supabase -c "CREATE SCHEMA IF NOT EXISTS storage;" 2>/dev/null || true
 docker exec shared-postgres psql -U postgres -d supabase -c "CREATE SCHEMA IF NOT EXISTS realtime;" 2>/dev/null || true
 
-# 8. Start Supabase
+# 9. Start Supabase
 echo -e "${YELLOW}🔧 Starting Supabase services...${NC}"
 docker-compose -f docker-compose.supabase.yml up -d
 
-# 9. Start n8n
+# 10. Start n8n
 echo -e "${YELLOW}⚙️  Starting n8n...${NC}"
 docker-compose -f docker-compose.n8n.yml up -d
 
@@ -79,12 +88,16 @@ echo ""
 echo "📋 Service Status:"
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 echo ""
-echo "🌐 Access URLs:"
-echo "   n8n:             http://$(grep DOMAIN_NAME .env | cut -d '=' -f2):5678"
-echo "   Supabase Studio: http://$(grep DOMAIN_NAME .env | cut -d '=' -f2):3000"
-echo "   Supabase API:    http://$(grep DOMAIN_NAME .env | cut -d '=' -f2):8000"
+echo "🌐 Access URLs (via Traefik with automatic HTTPS):"
+echo "   n8n:             https://n8n.$(grep DOMAIN_NAME .env | cut -d '=' -f2)"
+echo "   Supabase Studio: https://supabase.$(grep DOMAIN_NAME .env | cut -d '=' -f2)"
+echo "   Supabase API:    https://api.$(grep DOMAIN_NAME .env | cut -d '=' -f2)"
+echo "   Traefik Dashboard: http://$(grep DOMAIN_NAME .env | cut -d '=' -f2):8080"
 echo ""
 echo "📝 Next steps:"
-echo "   1. Open n8n and login with your N8N_USER/N8N_PASSWORD"
-echo "   2. Open Supabase Studio and start building"
-echo "   3. Setup SSL certificates for production (see HOSTINGER_DEPLOYMENT.md)"
+echo "   1. Ensure DNS records point to your server:"
+echo "      n8n.$(grep DOMAIN_NAME .env | cut -d '=' -f2)"
+echo "      supabase.$(grep DOMAIN_NAME .env | cut -d '=' -f2)"
+echo "      api.$(grep DOMAIN_NAME .env | cut -d '=' -f2)"
+echo "   2. Wait a few minutes for Let's Encrypt SSL certificates"
+echo "   3. Open n8n and login with your N8N_USER/N8N_PASSWORD"

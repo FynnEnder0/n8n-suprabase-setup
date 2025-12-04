@@ -13,11 +13,11 @@ services:
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-changeme123}
       
       # n8n Configuration
-      - N8N_HOST=${DOMAIN_NAME:-localhost}
+      - N8N_HOST=n8n.${DOMAIN_NAME:-srv1097337.hstgr.cloud}
       - N8N_PORT=5678
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - N8N_PROTOCOL=https
       - NODE_ENV=production
-      - WEBHOOK_URL=${N8N_PROTOCOL:-http}://${DOMAIN_NAME:-localhost}/
+      - WEBHOOK_URL=https://n8n.${DOMAIN_NAME:-srv1097337.hstgr.cloud}/
 
       # Timezone
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Europe/Berlin}
@@ -31,12 +31,23 @@ services:
       # Optional: Encryption
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-}
       
-    ports:
-      - "5678:5678"
+    expose:
+      - "5678"
+
     volumes:
       - ./volumes/n8n:/home/node/.n8n
+
     networks:
       - shared-network
+
+    labels:
+      - "traefik.enable=true"
+      # HTTP Router
+      - "traefik.http.routers.n8n.rule=Host(`n8n.${DOMAIN_NAME:-srv1097337.hstgr.cloud}`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.n8n.service=n8n"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
 
 networks:
   shared-network:
